@@ -14,6 +14,11 @@ BASE_URL = os.environ.get("EQUIPMENTS_LIVE_BASE_URL", "").rstrip("/")
 JWT_SECRET = os.environ.get("EQUIPMENTS_LIVE_JWT_SECRET", "")
 JWT_ISSUER = os.environ.get("EQUIPMENTS_LIVE_JWT_ISSUER", "platform-auth")
 JWT_AUDIENCE = os.environ.get("EQUIPMENTS_LIVE_JWT_AUDIENCE", "equipments-service")
+VERIFY_TLS = os.environ.get("EQUIPMENTS_LIVE_VERIFY_TLS", "true").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 
 pytestmark = pytest.mark.skipif(
     not BASE_URL or not JWT_SECRET,
@@ -46,7 +51,12 @@ class LiveState:
 @pytest.fixture()
 def live_state() -> LiveState:
     suffix = uuid4().hex[:8].upper()
-    with httpx.Client(base_url=BASE_URL, timeout=30.0, follow_redirects=False) as client:
+    with httpx.Client(
+        base_url=BASE_URL,
+        timeout=30.0,
+        follow_redirects=False,
+        verify=VERIFY_TLS,
+    ) as client:
         yield LiveState(suffix=suffix, client=client)
 
 
