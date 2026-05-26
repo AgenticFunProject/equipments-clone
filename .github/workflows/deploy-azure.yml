@@ -1,0 +1,120 @@
+name: deploy-azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      resourceGroup:
+        description: Azure resource group name.
+        required: true
+        default: equipments-clone-rg
+      location:
+        description: Azure region.
+        required: true
+        default: westeurope
+      appName:
+        description: Container App name.
+        required: true
+        default: equipments-clone
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to Azure Container Apps
+    runs-on: ubuntu-latest
+    environment: azure-production
+    env:
+      RESOURCE_GROUP: ${{ inputs.resourceGroup }}
+      LOCATION: ${{ inputs.location }}
+      APP_NAME: ${{ inputs.appName }}
+      AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Show Azure CLI version
+        run: az version
+
+      - name: Ensure Bicep CLI
+        run: |
+          az bicep install
+          az bicep version
+
+      - name: Check deployment secrets
+        run: |
+          if [ -z "$AUTH_JWT_SECRET" ]; then
+            echo "::error::GitHub secret AUTH_JWT_SECRET is required."
+            exit 1
+          fi
+
+      - name: Create resource group
+        run: |
+          az group create \
+            --name "$RESOURCE_GROUP" \
+            --location "$LOCATION"
+
+      - name: Provision registry
+        id: registry
+        run: |
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file infra/registry.bicep \
+            --parameters location="$LOCATION" appName="$APP_NAME" \
+            --query properties.outputs \
+            --output json > registry-outputs.json
+
+          echo "acr_name=$(jq -r '.acrName.value' registry-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "login_server=$(jq -r '.loginServer.value' registry-outputs.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        id: image
+        run: |
+          acr_username="$(az acr credential show \
+            --name "${{ steps.registry.outputs.acr_name }}" \
+            --query username \
+            --output tsv)"
+          acr_password="$(az acr credential show \
+            --name "${{ steps.registry.outputs.acr_name }}" \
+            --query 'passwords[0].value' \
+            --output tsv)"
+
+          echo "$acr_password" | docker login \
+            "${{ steps.registry.outputs.login_server }}" \
+            --username "$acr_username" \
+            --password-stdin
+
+          image="${{ steps.registry.outputs.login_server }}/${APP_NAME}:${GITHUB_SHA}"
+          docker build -t "$image" .
+          docker push "$image"
+
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Container App
+        id: app
+        run: |
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file infra/container-app.bicep \
+            --parameters \
+                location="$LOCATION" \
+                appName="$APP_NAME" \
+                acrName="${{ steps.registry.outputs.acr_name }}" \
+                image="${{ steps.image.outputs.image }}" \
+                authJwtSecret="$AUTH_JWT_SECRET" \
+            --query properties.outputs \
+            --output json > app-outputs.json
+
+          echo "fqdn=$(jq -r '.fqdn.value' app-outputs.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        run: |
+          curl -fsS "https://${{ steps.app.outputs.fqdn }}/health"

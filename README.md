@@ -45,6 +45,11 @@ The repository includes executable Gherkin-style contract coverage under
 .venv/bin/pytest tests/test_gherkin_contract.py
 ```
 
+## Deploy
+
+Azure Container Apps deployment assets live in `infra/`, with setup and
+workflow instructions in `docs/azure-deployment.md`.
+
 ## Persistence
 
 Default storage is transient memory. SQLite-like durability is available via:
