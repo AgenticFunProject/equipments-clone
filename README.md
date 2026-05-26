@@ -38,6 +38,13 @@ playground and tests.
 .venv/bin/ruff check .
 ```
 
+The repository includes executable Gherkin-style contract coverage under
+`tests/features/`, backed by `pytest-bdd` step definitions:
+
+```bash
+.venv/bin/pytest tests/test_gherkin_contract.py
+```
+
 ## Persistence
 
 Default storage is transient memory. SQLite-like durability is available via:
