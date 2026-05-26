@@ -25,7 +25,7 @@ Set the working values:
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 TENANT_ID=$(az account show --query tenantId -o tsv)
 RESOURCE_GROUP=equipments-clone-rg
-LOCATION=westeurope
+LOCATION=northeurope
 APP_NAME=equipments-clone
 REPO=AgenticFunProject/equipments-clone
 ENVIRONMENT=azure-production

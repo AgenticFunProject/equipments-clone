@@ -10,7 +10,7 @@ on:
       location:
         description: Azure region.
         required: true
-        default: westeurope
+        default: northeurope
       appName:
         description: Container App name.
         required: true
@@ -79,14 +79,40 @@ jobs:
           echo "acr_name=$(jq -r '.acrName.value' registry-outputs.json)" >> "$GITHUB_OUTPUT"
           echo "login_server=$(jq -r '.loginServer.value' registry-outputs.json)" >> "$GITHUB_OUTPUT"
 
+      - name: Wait for registry readiness
+        run: |
+          for attempt in {1..30}; do
+            state="$(az acr show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "${{ steps.registry.outputs.acr_name }}" \
+              --query provisioningState \
+              --output tsv 2>/dev/null || true)"
+
+            if [ "$state" = "Succeeded" ] && az acr credential show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "${{ steps.registry.outputs.acr_name }}" \
+              --query username \
+              --output tsv >/dev/null 2>&1; then
+              exit 0
+            fi
+
+            echo "ACR not ready yet; attempt ${attempt}/30."
+            sleep 10
+          done
+
+          echo "::error::Azure Container Registry was not ready after waiting."
+          exit 1
+
       - name: Build and push image
         id: image
         run: |
           acr_username="$(az acr credential show \
+            --resource-group "$RESOURCE_GROUP" \
             --name "${{ steps.registry.outputs.acr_name }}" \
             --query username \
             --output tsv)"
           acr_password="$(az acr credential show \
+            --resource-group "$RESOURCE_GROUP" \
             --name "${{ steps.registry.outputs.acr_name }}" \
             --query 'passwords[0].value' \
             --output tsv)"
@@ -105,17 +131,28 @@ jobs:
       - name: Deploy Container App
         id: app
         run: |
-          az deployment group create \
-            --resource-group "$RESOURCE_GROUP" \
-            --template-file infra/container-app.bicep \
-            --parameters \
-                location="$LOCATION" \
-                appName="$APP_NAME" \
-                acrName="${{ steps.registry.outputs.acr_name }}" \
-                image="${{ steps.image.outputs.image }}" \
-                authJwtSecret="$AUTH_JWT_SECRET" \
-            --query properties.outputs \
-            --output json > app-outputs.json
+          for attempt in {1..3}; do
+            if az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --template-file infra/container-app.bicep \
+              --parameters \
+                  location="$LOCATION" \
+                  appName="$APP_NAME" \
+                  acrName="${{ steps.registry.outputs.acr_name }}" \
+                  image="${{ steps.image.outputs.image }}" \
+                  authJwtSecret="$AUTH_JWT_SECRET" \
+              --query properties.outputs \
+              --output json > app-outputs.json; then
+              break
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+
+            echo "Container App deployment failed; retrying after Azure control-plane settling."
+            sleep 30
+          done
 
           echo "fqdn=$(jq -r '.fqdn.value' app-outputs.json)" >> "$GITHUB_OUTPUT"
 
