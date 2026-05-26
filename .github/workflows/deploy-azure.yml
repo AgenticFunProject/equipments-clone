@@ -32,7 +32,7 @@ jobs:
       AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Azure login
         uses: azure/login@v3
