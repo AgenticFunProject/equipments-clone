@@ -50,6 +50,16 @@ The repository includes executable Gherkin-style contract coverage under
 Azure Container Apps deployment assets live in `infra/`, with setup and
 workflow instructions in `docs/azure-deployment.md`.
 
+Current shared Azure deployment:
+
+```text
+https://equipments-clone.gentlesand-8eeba7f3.northeurope.azurecontainerapps.io
+```
+
+`/health` is public. Consumers should prefer the GitHub deployment environment
+URL when available because Azure Container Apps FQDNs can change if the managed
+environment is recreated.
+
 ## Persistence
 
 Default storage is transient memory. SQLite-like durability is available via:

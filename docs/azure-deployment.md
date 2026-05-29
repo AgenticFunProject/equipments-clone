@@ -17,6 +17,18 @@ and uses Azure CLI plus OpenID Connect.
   SQLite locally, but Container Apps replicas do not provide durable shared
   SQLite storage without adding a volume design.
 
+## Current Shared Deployment
+
+The shared Azure Container App is currently available at:
+
+```text
+https://equipments-clone.gentlesand-8eeba7f3.northeurope.azurecontainerapps.io
+```
+
+The public health endpoint is `/health`. Consumers should prefer the GitHub
+deployment environment URL after workflow deployments, because the Container App
+FQDN can change if the managed environment is recreated.
+
 ## One-Time Azure Setup
 
 Set the working values:
@@ -121,7 +133,8 @@ The workflow:
 2. Creates or updates Azure Container Registry.
 3. Builds and pushes the Docker image.
 4. Creates or updates the Container App.
-5. Smoke-tests `https://<fqdn>/health`.
+5. Publishes the deployment URL to the GitHub environment and step summary.
+6. Smoke-tests `https://<fqdn>/health`.
 
 ## Manual Azure CLI Deployment
 

@@ -49,8 +49,16 @@ param cpu string = '0.5'
 @description('Container memory.')
 param memory string = '1Gi'
 
+@description('Additional tags for Azure resources.')
+param tags object = {}
+
 var logAnalyticsName = '${appName}-logs'
 var environmentName = '${appName}-env'
+var commonTags = union({
+  managedBy: 'github-actions'
+  repo: 'AgenticFunProject-equipments-clone'
+  service: appName
+}, tags)
 
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: acrName
@@ -59,6 +67,7 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing =
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsName
   location: location
+  tags: commonTags
   properties: {
     sku: {
       name: 'PerGB2018'
@@ -70,6 +79,7 @@ resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 resource containerEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: environmentName
   location: location
+  tags: commonTags
   properties: {
     appLogsConfiguration: {
       destination: 'log-analytics'
@@ -86,6 +96,7 @@ var registryCredentials = registry.listCredentials()
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
   location: location
+  tags: commonTags
   properties: {
     managedEnvironmentId: containerEnvironment.id
     configuration: {

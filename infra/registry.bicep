@@ -14,12 +14,21 @@ param appName string = 'equipments-clone'
 @description('Azure Container Registry SKU.')
 param acrSku string = 'Basic'
 
+@description('Additional tags for Azure resources.')
+param tags object = {}
+
 var registryPrefix = take(toLower(replace(replace(appName, '-', ''), '_', '')), 30)
 var registryName = '${registryPrefix}${uniqueString(resourceGroup().id, appName)}'
+var commonTags = union({
+  managedBy: 'github-actions'
+  repo: 'AgenticFunProject-equipments-clone'
+  service: appName
+}, tags)
 
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: registryName
   location: location
+  tags: commonTags
   sku: {
     name: acrSku
   }

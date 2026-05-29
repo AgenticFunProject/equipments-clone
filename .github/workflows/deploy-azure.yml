@@ -24,7 +24,9 @@ jobs:
   deploy:
     name: Deploy to Azure Container Apps
     runs-on: ubuntu-latest
-    environment: azure-production
+    environment:
+      name: azure-production
+      url: https://${{ steps.app.outputs.fqdn }}
     env:
       RESOURCE_GROUP: ${{ inputs.resourceGroup }}
       LOCATION: ${{ inputs.location }}
@@ -155,6 +157,15 @@ jobs:
           done
 
           echo "fqdn=$(jq -r '.fqdn.value' app-outputs.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish deployment summary
+        run: |
+          {
+            echo "### Azure Container App"
+            echo ""
+            echo "- URL: https://${{ steps.app.outputs.fqdn }}"
+            echo "- Health: https://${{ steps.app.outputs.fqdn }}/health"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke test
         run: |
